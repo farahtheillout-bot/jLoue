@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  HOST
+  GUEST
+  ADMIN
+}
+
+enum ListingType {
+  HOME
+  ROOM
+  EXPERIENCE
+  ITEM
+}
+
+enum ListingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      UserRole @default(GUEST)
+  createdAt DateTime @default(now())
+
+  listings  Listing[]
+  bookings Booking[] @relation("UserBookings")
+
+}
+
+model Listing {
+  id          Int           @id @default(autoincrement())
+  type        ListingType
+  title       String
+  description String
+  basePrice   Int           // centimes
+  currency    String        @default("EUR")
+  status      ListingStatus @default(DRAFT)
+
+  owner       User          @relation(fields: [ownerId], references: [id])
+  ownerId     Int
+
+  images ListingImage[]
+  bookings Booking[]
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+unavailableRanges UnavailableRange[]
+
+}
+model ListingImage {
+  id        Int      @id @default(autoincrement())
+  url       String
+  position  Int      @default(0)
+
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  listingId Int
+}
+
+
+model Booking {
+  id         Int      @id @default(autoincrement())
+
+  listing    Listing  @relation(fields: [listingId], references: [id])
+  listingId  Int
+
+renter    User @relation("UserBookings", fields: [renterId], references: [id])
+renterId  Int
+
+updatedAt DateTime @updatedAt
+
+  startDate  DateTime
+  endDate    DateTime
+
+  totalPrice Int      // en centimes
+  status     BookingStatus @default(PENDING)
+
+  createdAt  DateTime @default(now())
+}
+
+model UnavailableRange {
+  id        Int      @id @default(autoincrement())
+  startDate DateTime
+  endDate   DateTime
+  reason    String?  // ex: "maintenance", "déjà loué"
+
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  listingId Int
+
+  createdAt DateTime @default(now())
+}
