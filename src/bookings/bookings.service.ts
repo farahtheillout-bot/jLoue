@@ -56,14 +56,17 @@ export class BookingsService {
       const totalPrice = nights * listing.basePrice;
 
       // 4) status starts as PENDING
-      return tx.booking.create({
-        data: {
-          listingId,
-          renterId,
-          startDate,
-          endDate,
-          totalPrice,
-          status: 'PENDING',
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // +15 min
+return tx.booking.create({
+  data: {
+    listingId,
+    renterId,
+    startDate,
+    endDate,
+    totalPrice, // <-- DOIT ÊTRE LÀ
+    status: 'PENDING',
+    expiresAt,
+  
         },
       });
     });
@@ -79,12 +82,17 @@ export class BookingsService {
           listingId: true,
           startDate: true,
           endDate: true,
+          expiresAt: true,
           listing: { select: { ownerId: true } },
         },
       });
 
       if (!booking) throw new NotFoundException('Booking not found');
-      if (booking.status !== 'PENDING') throw new BadRequestException('Only PENDING can be confirmed');
+if (booking.status !== 'PENDING') throw new BadRequestException('Only PENDING can be confirmed');
+
+if (booking.expiresAt && booking.expiresAt < new Date()) {
+  throw new BadRequestException('Booking expired');
+}
 
       // seul le host (owner) confirme
       if (booking.listing.ownerId !== actorUserId) {
