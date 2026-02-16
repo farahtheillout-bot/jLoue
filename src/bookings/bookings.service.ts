@@ -1,6 +1,7 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+@Injectable()
 export class BookingsService {
   constructor(private readonly prisma: PrismaService) {}
 

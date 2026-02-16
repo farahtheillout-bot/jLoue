@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -31,6 +31,13 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum Currency {
+  EUR
+  USD
+  GBP
+  CHF
+}
+
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
@@ -49,7 +56,7 @@ model Listing {
   title       String
   description String
   basePrice   Int           // centimes
-  currency    String        @default("EUR")
+  currency    Currency        @default(EUR)
   status      ListingStatus @default(DRAFT)
 
   owner       User          @relation(fields: [ownerId], references: [id])
