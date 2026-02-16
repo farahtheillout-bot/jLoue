@@ -1,9 +1,32 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class BookingsService {
   constructor(private readonly prisma: PrismaService) {}
+
+
+  @Cron(CronExpression.EVERY_MINUTE)
+async cancelExpiredPendingBookings() {
+  const now = new Date();
+
+  const res = await this.prisma.booking.updateMany({
+    where: {
+      status: 'PENDING',
+      expiresAt: { lte: now },
+    },
+    data: {
+      status: 'CANCELLED',
+      expiresAt: null,
+    },
+  });
+
+  if (res.count > 0) {
+    console.log(`🧹 Cancelled ${res.count} expired PENDING booking(s)`);
+  }
+}
+
 
   async createBooking(dto: {
     listingId: number;
