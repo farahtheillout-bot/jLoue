@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { DateTime } from 'luxon';
 
 @Injectable()
 export class BookingsService {
@@ -51,7 +52,8 @@ async cancelExpiredPendingBookings() {
   bookingUnit: true,
   minDuration: true,
   maxDuration: true,
-  checkInHour: true, 
+  checkInHour: true,
+  timeZone: true, 
 },
 
       });
@@ -59,34 +61,47 @@ async cancelExpiredPendingBookings() {
       if (!listing) throw new NotFoundException('Listing not found');
       if (listing.status !== 'PUBLISHED') throw new BadRequestException('Listing not bookable');
 
-      // STRICT alignment validation
-if (listing.bookingUnit === 'DAY' || listing.bookingUnit === 'WEEK') {
-  const checkInHour = listing.checkInHour;
+      // STRICT alignment validation (in listing local timezone, stored as UTC)
+const tz = listing.timeZone || 'UTC';
+const startLocal = DateTime.fromJSDate(startDate, { zone: tz });
+const endLocal = DateTime.fromJSDate(endDate, { zone: tz });
 
-  if (
-    startDate.getHours() !== checkInHour ||
-    endDate.getHours() !== checkInHour ||
-    startDate.getMinutes() !== 0 ||
-    endDate.getMinutes() !== 0 ||
-    startDate.getSeconds() !== 0 ||
-    endDate.getSeconds() !== 0
-  ) {
-    throw new BadRequestException(
-      `Bookings must align to ${checkInHour}:00 exactly`
-    );
+if (!startLocal.isValid || !endLocal.isValid) {
+  throw new BadRequestException('Invalid dates for listing timezone');
+}
+
+if (listing.bookingUnit === 'DAY' || listing.bookingUnit === 'WEEK') {
+  const h = listing.checkInHour;
+
+  const ok =
+    startLocal.hour === h &&
+    endLocal.hour === h &&
+    startLocal.minute === 0 &&
+    endLocal.minute === 0 &&
+    startLocal.second === 0 &&
+    endLocal.second === 0;
+
+  if (!ok) {
+    throw new BadRequestException(`Bookings must align to ${h}:00 in ${tz}`);
+  }
+
+  if (listing.bookingUnit === 'WEEK') {
+    // ISO weekday: 1 = Monday ... 7 = Sunday
+    if (startLocal.weekday !== 1 || endLocal.weekday !== 1) {
+      throw new BadRequestException(`Weekly bookings must start/end on Monday in ${tz}`);
+    }
   }
 }
 
 if (listing.bookingUnit === 'HOUR') {
-  if (
-    startDate.getMinutes() !== 0 ||
-    endDate.getMinutes() !== 0 ||
-    startDate.getSeconds() !== 0 ||
-    endDate.getSeconds() !== 0
-  ) {
-    throw new BadRequestException(
-      'Hourly bookings must start and end on the hour'
-    );
+  const ok =
+    startLocal.minute === 0 &&
+    endLocal.minute === 0 &&
+    startLocal.second === 0 &&
+    endLocal.second === 0;
+
+  if (!ok) {
+    throw new BadRequestException(`Hourly bookings must start/end on the hour in ${tz}`);
   }
 }
 
