@@ -54,6 +54,7 @@ async cancelExpiredPendingBookings() {
   maxDuration: true,
   checkInHour: true,
   timeZone: true, 
+  quantity: true,
 },
 
       });
@@ -111,19 +112,18 @@ if (listing.bookingUnit === 'HOUR') {
       }
 
       // 2) overlap check (PENDING + CONFIRMED)
-      const overlap = await tx.booking.findFirst({
-        where: {
-          listingId,
-          status: { in: ['PENDING', 'CONFIRMED'] },
-          startDate: { lt: endDate },
-          endDate: { gt: startDate },
-        },
-        select: { id: true },
-      });
+      const overlappingCount = await tx.booking.count({
+  where: {
+    listingId,
+    status: { in: ['PENDING', 'CONFIRMED'] },
+    startDate: { lt: endDate },
+    endDate: { gt: startDate },
+  },
+});
 
-      if (overlap) {
-        throw new ConflictException('Dates overlap');
-      }
+if (overlappingCount >= listing.quantity) {
+  throw new ConflictException('No availability for these dates');
+}
 
       // 3) totalPrice calc (centimes)
       const ms = endDate.getTime() - startDate.getTime();
@@ -204,18 +204,26 @@ if (booking.expiresAt && booking.expiresAt < new Date()) {
       }
 
       // re-check overlap (au moment de confirmer)
-      const overlap = await tx.booking.findFirst({
-        where: {
-          listingId: booking.listingId,
-          status: { in: ['CONFIRMED'] }, // CONFIRMED bloque sûr
-          startDate: { lt: booking.endDate },
-          endDate: { gt: booking.startDate },
-          NOT: { id: booking.id },
-        },
-        select: { id: true },
-      });
+      const overlappingConfirmedOrPending = await tx.booking.count({
+  where: {
+    listingId: booking.listingId,
+    status: { in: ['PENDING', 'CONFIRMED'] },
+    startDate: { lt: booking.endDate },
+    endDate: { gt: booking.startDate },
+    NOT: { id: booking.id },
+  },
+});
 
-      if (overlap) throw new ConflictException('Dates overlap');
+const listing = await tx.listing.findUnique({
+  where: { id: booking.listingId },
+  select: { quantity: true },
+});
+
+if (!listing) throw new NotFoundException('Listing not found');
+
+if (overlappingConfirmedOrPending >= listing.quantity) {
+  throw new ConflictException('No availability for these dates');
+}
 
       return tx.booking.update({
         where: { id: booking.id },
