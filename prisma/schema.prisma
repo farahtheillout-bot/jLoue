@@ -97,7 +97,7 @@ updatedAt DateTime @updatedAt
 
   totalPrice Int      // en centimes
   status     BookingStatus @default(PENDING)
-
+  expiresAt DateTime?
   createdAt  DateTime @default(now())
 }
 
