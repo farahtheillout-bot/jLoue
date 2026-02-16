@@ -71,6 +71,7 @@ model Listing {
   minDuration Int           @default(1)
   maxDuration Int?
   checkInHour Int @default(12)
+  timeZone String @default("UTC")
 
   owner       User          @relation(fields: [ownerId], references: [id])
   ownerId     Int
