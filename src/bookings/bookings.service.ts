@@ -41,7 +41,8 @@ async cancelExpiredPendingBookings() {
       throw new BadRequestException('endDate must be > startDate');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(
+  async (tx) => {
       const listing = await tx.listing.findUnique({
         where: { id: listingId },
         select: {
@@ -173,11 +174,15 @@ return tx.booking.create({
     expiresAt,
   },
 });
-    });
+  },
+  { isolationLevel: 'Serializable' }
+);
   }
 
-  async confirmBooking(bookingId: number, actorUserId: number) {
-    return this.prisma.$transaction(async (tx) => {
+async confirmBooking(bookingId: number, actorUserId: number) {
+  return this.prisma.$transaction(
+    async (tx) => {
+
       const booking = await tx.booking.findUnique({
         where: { id: bookingId },
         select: {
@@ -192,43 +197,24 @@ return tx.booking.create({
       });
 
       if (!booking) throw new NotFoundException('Booking not found');
-if (booking.status !== 'PENDING') throw new BadRequestException('Only PENDING can be confirmed');
+      if (booking.status !== 'PENDING')
+        throw new BadRequestException('Only PENDING can be confirmed');
 
-if (booking.expiresAt && booking.expiresAt < new Date()) {
-  throw new BadRequestException('Booking expired');
-}
+      if (booking.expiresAt && booking.expiresAt < new Date()) {
+        throw new BadRequestException('Booking expired');
+      }
 
-      // seul le host (owner) confirme
       if (booking.listing.ownerId !== actorUserId) {
         throw new ForbiddenException('Only host can confirm');
       }
-
-      // re-check overlap (au moment de confirmer)
-      const overlappingConfirmedOrPending = await tx.booking.count({
-  where: {
-    listingId: booking.listingId,
-    status: { in: ['PENDING', 'CONFIRMED'] },
-    startDate: { lt: booking.endDate },
-    endDate: { gt: booking.startDate },
-    NOT: { id: booking.id },
-  },
-});
-
-const listing = await tx.listing.findUnique({
-  where: { id: booking.listingId },
-  select: { quantity: true },
-});
-
-if (!listing) throw new NotFoundException('Listing not found');
-
-if (overlappingConfirmedOrPending >= listing.quantity) {
-  throw new ConflictException('No availability for these dates');
-}
 
       return tx.booking.update({
         where: { id: booking.id },
         data: { status: 'CONFIRMED' },
       });
-    });
-  }
+
+    },
+    { isolationLevel: 'Serializable' }
+  );
+}
 }
