@@ -6,6 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
+
 enum UserRole {
   HOST
   GUEST
@@ -38,6 +39,13 @@ enum Currency {
   CHF
 }
 
+enum BookingUnit {
+  HOUR
+  DAY
+  WEEK
+}
+
+
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
@@ -56,19 +64,24 @@ model Listing {
   title       String
   description String
   basePrice   Int           // centimes
-  currency    Currency        @default(EUR)
+  currency    Currency      @default(EUR)
   status      ListingStatus @default(DRAFT)
+
+  bookingUnit BookingUnit   @default(DAY)
+  minDuration Int           @default(1)
+  maxDuration Int?
+  checkInHour Int @default(12)
 
   owner       User          @relation(fields: [ownerId], references: [id])
   ownerId     Int
 
-  images ListingImage[]
-  bookings Booking[]
+  images      ListingImage[]
+  bookings    Booking[]
 
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-unavailableRanges UnavailableRange[]
+  unavailableRanges UnavailableRange[]
 
 }
 model ListingImage {
@@ -96,6 +109,7 @@ updatedAt DateTime @updatedAt
   endDate    DateTime
 
   totalPrice Int      // en centimes
+
   status     BookingStatus @default(PENDING)
   expiresAt DateTime?
   createdAt  DateTime @default(now())

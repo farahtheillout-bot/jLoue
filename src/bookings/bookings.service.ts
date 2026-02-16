@@ -26,8 +26,6 @@ async cancelExpiredPendingBookings() {
     console.log(`🧹 Cancelled ${res.count} expired PENDING booking(s)`);
   }
 }
-
-
   async createBooking(dto: {
     listingId: number;
     renterId: number;
@@ -45,11 +43,52 @@ async cancelExpiredPendingBookings() {
     return this.prisma.$transaction(async (tx) => {
       const listing = await tx.listing.findUnique({
         where: { id: listingId },
-        select: { id: true, ownerId: true, basePrice: true, status: true },
+        select: {
+  id: true,
+  ownerId: true,
+  basePrice: true,
+  status: true,
+  bookingUnit: true,
+  minDuration: true,
+  maxDuration: true,
+  checkInHour: true, 
+},
+
       });
 
       if (!listing) throw new NotFoundException('Listing not found');
       if (listing.status !== 'PUBLISHED') throw new BadRequestException('Listing not bookable');
+
+      // STRICT alignment validation
+if (listing.bookingUnit === 'DAY' || listing.bookingUnit === 'WEEK') {
+  const checkInHour = listing.checkInHour;
+
+  if (
+    startDate.getHours() !== checkInHour ||
+    endDate.getHours() !== checkInHour ||
+    startDate.getMinutes() !== 0 ||
+    endDate.getMinutes() !== 0 ||
+    startDate.getSeconds() !== 0 ||
+    endDate.getSeconds() !== 0
+  ) {
+    throw new BadRequestException(
+      `Bookings must align to ${checkInHour}:00 exactly`
+    );
+  }
+}
+
+if (listing.bookingUnit === 'HOUR') {
+  if (
+    startDate.getMinutes() !== 0 ||
+    endDate.getMinutes() !== 0 ||
+    startDate.getSeconds() !== 0 ||
+    endDate.getSeconds() !== 0
+  ) {
+    throw new BadRequestException(
+      'Hourly bookings must start and end on the hour'
+    );
+  }
+}
 
       // 1) host cannot book own listing
       if (listing.ownerId === renterId) {
@@ -72,26 +111,53 @@ async cancelExpiredPendingBookings() {
       }
 
       // 3) totalPrice calc (centimes)
-      const msPerDay = 24 * 60 * 60 * 1000;
-      const nights = Math.ceil((endDate.getTime() - startDate.getTime()) / msPerDay);
-      if (nights <= 0) throw new BadRequestException('Invalid date range');
+      const ms = endDate.getTime() - startDate.getTime();
+if (ms <= 0) throw new BadRequestException('Invalid date range');
 
-      const totalPrice = nights * listing.basePrice;
+const MS_PER_HOUR = 60 * 60 * 1000;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+
+let durationUnits: number;
+
+switch (listing.bookingUnit) {
+  case 'HOUR':
+    durationUnits = Math.ceil(ms / MS_PER_HOUR);
+    break;
+  case 'DAY':
+    durationUnits = Math.ceil(ms / MS_PER_DAY);
+    break;
+  case 'WEEK':
+    durationUnits = Math.ceil(ms / MS_PER_WEEK);
+    break;
+  default:
+    throw new BadRequestException('Unsupported booking unit');
+}
+
+if (durationUnits < listing.minDuration) {
+  throw new BadRequestException(`Minimum duration is ${listing.minDuration} ${listing.bookingUnit}(s)`);
+}
+
+if (listing.maxDuration != null && durationUnits > listing.maxDuration) {
+  throw new BadRequestException(`Maximum duration is ${listing.maxDuration} ${listing.bookingUnit}(s)`);
+}
+
+const totalPrice = durationUnits * listing.basePrice;
 
       // 4) status starts as PENDING
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // +15 min
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
 return tx.booking.create({
   data: {
     listingId,
     renterId,
     startDate,
     endDate,
-    totalPrice, // <-- DOIT ÊTRE LÀ
+    totalPrice,
     status: 'PENDING',
     expiresAt,
-  
-        },
-      });
+  },
+});
     });
   }
 
