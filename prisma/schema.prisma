@@ -6,7 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-
 enum UserRole {
   HOST
   GUEST
@@ -45,7 +44,6 @@ enum BookingUnit {
   WEEK
 }
 
-
 model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
@@ -53,9 +51,10 @@ model User {
   role      UserRole @default(GUEST)
   createdAt DateTime @default(now())
 
-  listings  Listing[]
+  listings Listing[]
   bookings Booking[] @relation("UserBookings")
 
+  hostProfile HostProfile?
 }
 
 model Listing {
@@ -63,68 +62,80 @@ model Listing {
   type        ListingType
   title       String
   description String
-  basePrice   Int           // centimes
+  basePrice   Int // centimes
   currency    Currency      @default(EUR)
   status      ListingStatus @default(DRAFT)
 
-  bookingUnit BookingUnit   @default(DAY)
-  minDuration Int           @default(1)
+  bookingUnit BookingUnit @default(DAY)
+  minDuration Int         @default(1)
   maxDuration Int?
-  checkInHour Int @default(12)
-  timeZone String @default("UTC")
-  quantity Int @default(1)
+  checkInHour Int         @default(12)
+  timeZone    String      @default("UTC")
+  quantity    Int         @default(1)
 
-  owner       User          @relation(fields: [ownerId], references: [id])
-  ownerId     Int
+  owner   User @relation(fields: [ownerId], references: [id])
+  ownerId Int
 
-  images      ListingImage[]
-  bookings    Booking[]
+  images   ListingImage[]
+  bookings Booking[]
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   unavailableRanges UnavailableRange[]
-
 }
-model ListingImage {
-  id        Int      @id @default(autoincrement())
-  url       String
-  position  Int      @default(0)
 
-  listing   Listing  @relation(fields: [listingId], references: [id])
+model ListingImage {
+  id       Int    @id @default(autoincrement())
+  url      String
+  position Int    @default(0)
+
+  listing   Listing @relation(fields: [listingId], references: [id])
   listingId Int
 }
 
-
 model Booking {
-  id         Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  listing    Listing  @relation(fields: [listingId], references: [id])
-  listingId  Int
+  listing   Listing @relation(fields: [listingId], references: [id])
+  listingId Int
 
-renter    User @relation("UserBookings", fields: [renterId], references: [id])
-renterId  Int
+  renter   User @relation("UserBookings", fields: [renterId], references: [id])
+  renterId Int
 
-updatedAt DateTime @updatedAt
+  startDate DateTime
+  endDate   DateTime
 
-  startDate  DateTime
-  endDate    DateTime
+  totalPrice Int
 
-  totalPrice Int      // en centimes
-
-  status     BookingStatus @default(PENDING)
+  status    BookingStatus @default(PENDING)
   expiresAt DateTime?
-  createdAt  DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model UnavailableRange {
   id        Int      @id @default(autoincrement())
   startDate DateTime
   endDate   DateTime
-  reason    String?  // ex: "maintenance", "déjà loué"
+  reason    String?
 
-  listing   Listing  @relation(fields: [listingId], references: [id])
+  listing   Listing @relation(fields: [listingId], references: [id])
   listingId Int
+}
 
-  createdAt DateTime @default(now())
+model HostProfile {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  displayName  String
+  phone        String?
+  addressLine1 String?
+  city         String?
+  country      String?
+  verified     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 }
