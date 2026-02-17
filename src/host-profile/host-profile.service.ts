@@ -13,7 +13,8 @@ export class HostProfileService {
     city?: string;
     country?: string;
   }) {
-    if (!dto.displayName?.trim()) throw new BadRequestException('displayName is required');
+    if (!dto) throw new BadRequestException('Request body is required');
+if (!dto.displayName?.trim()) throw new BadRequestException('displayName is required');
 
     // user must exist
     const user = await this.prisma.user.findUnique({
